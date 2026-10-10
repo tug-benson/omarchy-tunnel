@@ -42,8 +42,7 @@ omarchy plugin add https://github.com/ecylmz/omarchy-tunnel.git --enable
 ## Usage
 
 - Left-click the lock icon to open the panel.
-- Select a profile or its switch to connect or disconnect.
-- Use the **Split tunneling** toggle (section `SPLIT TUNNELING`) to route only the VPN subnets through the tunnel and keep the rest direct. Reconnect an active profile to apply the change.
+- Each profile row has two toggles: **Connection** to connect or disconnect, and **Split** for split tunneling (only the VPN subnets go through the tunnel, the rest stays direct). Reconnect an active profile to apply a split change.
 - Choose **Import configuration** to add a `.conf` or `.wg` file.
 - Click the remove button twice to delete an inactive profile.
 
