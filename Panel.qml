@@ -38,6 +38,13 @@ Panel {
     }
     return null
   }
+  readonly property var cursorProfile: {
+    if (cursorIndex >= 0 && cursorIndex < profiles.length) return profiles[cursorIndex]
+    return null
+  }
+  readonly property var routingProfile: activeProfile ? activeProfile : cursorProfile
+  readonly property bool routingSplit: routingProfile ? tunnel.isSplit(routingProfile.uuid) : false
+  readonly property bool routingBusy: routingProfile ? (tunnel.busyUuid === routingProfile.uuid && (tunnel.actionKind === "split-on" || tunnel.actionKind === "split-off")) : false
 
   function open() {
     root.controller.show()
@@ -175,6 +182,16 @@ Panel {
     }
   }
 
+  function toggleSplit(uuid) {
+    var profile = tunnel.profileByUuid(uuid)
+    if (!profile || tunnel.busy) return
+    tunnel.setSplitTunnel(uuid, !tunnel.isSplit(uuid))
+  }
+
+  function toggleRoutingSplit() {
+    if (root.routingProfile) toggleSplit(root.routingProfile.uuid)
+  }
+
   onOpenedChanged: if (opened) {
     cursorActive = false
     cursorIndex = 0
@@ -257,6 +274,7 @@ Panel {
         }
         if (t === "i" || t === "I") root.openPicker()
         else if (t === "r" || t === "R") tunnel.refresh()
+        else if (t === "s" || t === "S") root.toggleRoutingSplit()
         else if ((t === "d" || t === "D") && root.cursorIndex < root.profiles.length) {
           var profile = root.profiles[root.cursorIndex]
           if (profile) root.requestDelete(profile.uuid)
@@ -351,6 +369,22 @@ Panel {
                   profile: modelData
                   rowIndex: index
                 }
+              }
+            }
+
+            Column {
+              visible: tunnel.available && root.routingProfile !== null
+              width: parent.width
+              spacing: Style.space(6)
+
+              PanelSectionHeader {
+                text: "SPLIT TUNNELING"
+                foreground: root.foreground
+                fontFamily: root.fontFamily
+              }
+
+              SplitTunnelRow {
+                width: parent.width
               }
             }
 
@@ -579,9 +613,9 @@ Panel {
           textFormat: Text.PlainText
           Layout.fillWidth: true
           text: !row.profile ? ""
-            : row.rowBusy ? (tunnel.actionKind === "up" ? "Connecting…" : tunnel.actionKind === "down" ? "Disconnecting…" : "Removing…")
-            : row.profile.active ? "Connected" + (row.profile.device ? " · " + row.profile.device : "")
-            : "Disconnected"
+            : row.rowBusy ? (tunnel.actionKind === "up" ? "Connecting…" : tunnel.actionKind === "down" ? "Disconnecting…" : tunnel.actionKind === "split-on" ? "Enabling split…" : tunnel.actionKind === "split-off" ? "Disabling split…" : "Removing…")
+            : row.profile.active ? "Connected" + (row.profile.device ? " · " + row.profile.device : "") + (tunnel.isSplit(row.profile.uuid) ? " · Split" : "")
+            : tunnel.isSplit(row.profile.uuid) ? "Disconnected · Split" : "Disconnected"
           color: root.dim
           font.family: root.fontFamily
           font.pixelSize: Style.font.caption
@@ -607,6 +641,67 @@ Panel {
         Layout.alignment: Qt.AlignVCenter
         onHovered: function(on) { if (on) root.setCursor(row.rowIndex) }
         onToggled: if (row.profile) tunnel.toggleProfile(row.profile.uuid)
+      }
+    }
+  }
+
+  component SplitTunnelRow: CursorSurface {
+    id: splitRow
+    foreground: root.foreground
+    fill: root.hoverFill
+    implicitHeight: splitInner.implicitHeight + Style.space(12)
+
+    MouseArea {
+      anchors.fill: parent
+      hoverEnabled: true
+      enabled: root.routingProfile && !tunnel.busy
+      cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+      onClicked: root.toggleRoutingSplit()
+    }
+
+    RowLayout {
+      id: splitInner
+      anchors.left: parent.left
+      anchors.right: parent.right
+      anchors.verticalCenter: parent.verticalCenter
+      anchors.leftMargin: Style.space(10)
+      anchors.rightMargin: Style.space(8)
+      spacing: Style.space(8)
+
+      ColumnLayout {
+        Layout.fillWidth: true
+        spacing: Style.space(1)
+
+        Text {
+          textFormat: Text.PlainText
+          Layout.fillWidth: true
+          text: root.routingBusy ? (tunnel.actionKind === "split-on" ? "Enabling split…" : "Disabling split…")
+            : root.routingSplit ? "Split tunneling on" : "Split tunneling off"
+          color: root.foreground
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.body
+          elide: Text.ElideRight
+        }
+
+        Text {
+          textFormat: Text.PlainText
+          Layout.fillWidth: true
+          text: root.routingProfile ? (root.routingProfile.name + (root.routingSplit ? " · LAN bypass, VPN keeps its subnets" : " · all traffic through VPN") + " · S to toggle") : ""
+          color: root.dim
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.caption
+          elide: Text.ElideRight
+          wrapMode: Text.NoWrap
+        }
+      }
+
+      ToggleSwitch {
+        checked: root.routingSplit
+        busy: root.routingBusy
+        foreground: root.foreground
+        enabled: root.routingProfile && !tunnel.importing
+        Layout.alignment: Qt.AlignVCenter
+        onToggled: root.toggleRoutingSplit()
       }
     }
   }
